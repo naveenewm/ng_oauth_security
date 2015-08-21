@@ -1,8 +1,8 @@
 # ng_oauth_security
- AngularJs Security Module for OAuth 2
+ AngularJs Security Module for OAuth 2 <br/>
+ 
     angular.module('app')
-        .config(
-        ["OAuthProvider",function(OAuthProvider) {
+        .config(["OAuthProvider",function(OAuthProvider) {
                 OAuthProvider.config({
                                    appId: {
                                        "clientId": "mysupplycompany",
