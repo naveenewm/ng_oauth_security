@@ -1,0 +1,31 @@
+{
+  "name": "oauth2_security",
+  "version": "1.0.0",
+  "description": "security module for oauth 2.0 server",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/naveenewm/oauth2_security.git"
+  },
+  "keywords": [
+    "angular",
+    "oauth",
+    "2.0",
+    "app",
+    "security"
+  ],
+  "author": "Naveen",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/naveenewm/oauth2_security/issues"
+  },
+  "homepage": "https://github.com/naveenewm/oauth2_security#readme",
+  "devDependencies": {
+    "grunt": "^0.4.5",
+    "grunt-contrib-jshint": "^0.11.3",
+    "grunt-contrib-uglify": "^0.9.2"
+  }
+}

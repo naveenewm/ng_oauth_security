@@ -1,7 +1,7 @@
 /**
  * Created by Naveen on 8/3/2015.
  */
-angular.module("oauth.security",[])
+angular.module("oauth2.security",[])
     .factory("Principle", ["$cookieStore", function($cookieStore) {
         var _principle;
         var _user;
@@ -56,10 +56,10 @@ angular.module("oauth.security",[])
                     method:"POST",
                     url: (credencials.url.baseUrl + credencials.url.login),
                     data: $.param({
-                        "client_id": credencials.appId.clientId,
-                        "client_secret": credencials.appId.clientSecret,
-                        "grant_type": credencials.appId.passwordGrantType,
-                        "scop":  credencials.appId.scop,
+                        "client_id": credencials.client.clientId,
+                        "client_secret": credencials.client.clientSecret,
+                        "grant_type": credencials.client.passwordGrantType,
+                        "scop":  credencials.client.scop,
                         "username": credencials.username,
                         "password": credencials.password
                     }),
@@ -73,9 +73,9 @@ angular.module("oauth.security",[])
                     method:"POST",
                     url: (credencials.url.baseUrl + credencials.url.login),
                     data: $.param({
-                        "client_id": credencials.appId.clientId,
-                        "client_secret": credencials.appId.clientSecret,
-                        "grant_type": credencials.appId.refreshTokeGrantType,
+                        "client_id": credencials.client.clientId,
+                        "client_secret": credencials.client.clientSecret,
+                        "grant_type": credencials.client.refreshTokeGrantType,
                         "refresh_token": credencials.refresh_token
                     }),
                     headers: {'Content-Type': 'application/x-www-form-urlencoded'}
@@ -103,7 +103,7 @@ angular.module("oauth.security",[])
         return {
             'request': function (config) {
                 var OAuth = $injector.get("OAuth");
-                if(config.url.match(OAuth.getConfigByUser(Principle.getUser()).securePattern)) {
+                if(config.url.match(OAuth.getConfigByUser(Principle.getUser()).apiPattern)) {
                     config.headers = config.headers || {};
                     if (Principle.isAvailabel()) {
                         config.headers["Authorization"] = 'Bearer ' + Principle.getAccessToken();
@@ -114,35 +114,36 @@ angular.module("oauth.security",[])
             },
             'responseError': function (response) {
                 var OAuthProcessor = $injector.get('OAuthProcessor');
-
-                switch(response.status) {
-                    case 401:
-                        var OAuth = $injector.get("OAuth");
-                        var defer = $q.defer();
-                        if(!inFlightAuthRequest) {
-                            var credential = angular.extend(Principle.getPrinciple(),OAuth.getApiConfig());
-                            inFlightAuthRequest = OAuthProcessor.refreshToken(credential);
-                        }
-                        inFlightAuthRequest.then(function(credencials) {
-                            inFlightAuthRequest=null;
-                            if(credencials.access_token) {
-                                Principle.setPrinciple(credencials);
-                                $injector.get("$http")(response.config).then(function(resp){
-                                    defer.resolve(resp);
-                                }, function(resp){
-                                    defer.reject(resp);
-                                });
-                            } else defer.reject(response);
-                        }, function(error) {
-                            inFlightAuthRequest = null;
-                            defer.reject();
-                            Principle.clear();
-                            OAuth.redirectCurrentUserPage();
-                            return error;
-                        });
-                        return defer.promise;
-                        break;
-                }
+                //if principle available than refresh the token
+                if(Principle.getPrinciple())
+                    switch(response.status) {
+                        case 401:
+                            var OAuth = $injector.get("OAuth");
+                            var defer = $q.defer();
+                            if(!inFlightAuthRequest) {
+                                var credential = angular.extend(Principle.getPrinciple(),OAuth.getApiConfig());
+                                inFlightAuthRequest = OAuthProcessor.refreshToken(credential);
+                            }
+                            inFlightAuthRequest.then(function(credencials) {
+                                inFlightAuthRequest=null;
+                                if(credencials.access_token) {
+                                    Principle.setPrinciple(credencials);
+                                    $injector.get("$http")(response.config).then(function(resp){
+                                        defer.resolve(resp);
+                                    }, function(resp){
+                                        defer.reject(resp);
+                                    });
+                                } else defer.reject(response);
+                            }, function(error) {
+                                inFlightAuthRequest = null;
+                                defer.reject();
+                                Principle.clear();
+                                OAuth.redirectCurrentUserPage();
+                                return error;
+                            });
+                            return defer.promise;
+                            break;
+                    }
                 return $q.reject(response);
             }
         };
@@ -152,9 +153,9 @@ angular.module("oauth.security",[])
         var _apiConfig;
         var _httpConfig;
 
-        function config(config,httpConfig) {
+        function config(config) {
             _apiConfig = config;
-            _httpConfig = httpConfig;
+            _httpConfig = config.http;
         };
 
         $httpProvider.interceptors.push("AuthInterceptor");
@@ -171,7 +172,7 @@ angular.module("oauth.security",[])
                         } else
                             return false;
                     }else {
-                        if (conf.role == 'OPEN') {
+                        if (conf.role == 'ROOT') {
                             config = conf;
                             return true;
                         } else
@@ -182,10 +183,10 @@ angular.module("oauth.security",[])
             };
             this.redirectCurrentUserPage = function() {
                 var defer = $q.defer();
-                if($window.location.pathname.match("/"+ me.getConfigByUser(Principle.getUser()).index)){
+                if($window.location.pathname.match("/"+ me.getConfigByUser(Principle.getUser()).appPath)){
                     defer.resolve();
                 } else
-                    $window.location.href = me.getConfigByUser(Principle.getUser()).index;
+                    $window.location.href = me.getConfigByUser(Principle.getUser()).appPath;
                 return defer.promise;
             };
 
@@ -250,8 +251,24 @@ angular.module("oauth.security",[])
             restrict:"AE",
             template:'{{currentUserName}}',
             link:function($scope, element, attr) {
-                $scope.currentUserName = Principle.getUser().fullName;
+                $scope.currentUserName = Principle.getUser().name;
             }
+        }
+    }])
+    .directive("currentUserImage", ["Principle", function(Principle) {
+        return {
+            restrict:"E",
+            replace:true,
+            template:'<img oauth-ng-img="imageUrl" dimg="user">',
+            controller:["$scope", function($scope) {
+                $scope.imageUrl = Principle.getUser()["_links"].image?Principle.getUser()["_links"].image.href:'';
+                $scope.$on("PROFILE_PICTURE_UPDATED_EVENT", function($event, url) {
+                    $scope.imageUrl = url+"?"+Math.random();
+                    var user = Principle.getUser();
+                    user["_links"].image = {"href":url};
+                    Principle.setUser(user);
+                });
+            }]
         }
     }])
     .directive("currentUserEmail", ["Principle", function(Principle) {
@@ -268,11 +285,17 @@ angular.module("oauth.security",[])
             restrict: 'A',
             link: function (scope, el, attrs) {
                 var url = attrs.oauthNgImg;
-                console.log(url);
+                var defaultUrl = "assets/img/no-image-icon.png";
+                if(attrs.dimg=='user') {
+                    defaultUrl = 'assets/img/avatars/user_profile.jpg';
+                }
                 el.on("error", function(e) {
-                    el.attr("src","assets/img/no-image-icon.png");
+                    el.attr("src",defaultUrl);
                 });
                 el.attr("src",OAuth.getUrlWithAuth(url));
+                scope.$watch(attrs.oauthNgImg, function(url){
+                    url&&el.attr("src",OAuth.getUrlWithAuth(url));
+                });
             }
         };
     }]);

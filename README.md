@@ -4,7 +4,7 @@
     angular.module('app')
         .config(["OAuthProvider",function(OAuthProvider) {
                 OAuthProvider.config({
-                                   appId: {
+                                   client: {
                                        "clientId": "mysupplycompany",
                                        "clientSecret":"mycompanykey",
                                        "passwordGrantType":"password",
@@ -18,12 +18,13 @@
                                        "login":"/token",
                                        "logout":"/revoke",
                                        "user":"/me"
-                                   }
-                               },[
-                                   {role:"OPEN",index:"index.html", securePattern:"/api/v1/*"},
-                                   {role:"ROLE_RETAIL", index:"rt_index.html", securePattern:"/api/v1/*"},
-                                   {role:"ROLE_WSALER",index:"ws_index.html", securePattern:"/api/v1/*"},
-                                   {role:"ROLE_SUPPLIER",index:"sp_index.html", securePattern:"/api/v1/*"}
-                               ]);
+                                   },
+								    http:[
+									   {role:"OPEN",appPath:"index.html", apiPattern:"/api/v1/*"},
+									   {role:"ROLE_USER1", appPath:"user1/index.html", apiPattern:"/api/v1/*"},
+									   {role:"ROLE_USER2",appPath:"user2/index.html", apiPattern:"/api/v1/*"},
+									   {role:"ROLE_ADMIN",appPath:"admin/index.html", apiPattern:"/api/v1/*"}
+									]
+                               });
             }
         ]);
