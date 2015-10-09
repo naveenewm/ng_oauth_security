@@ -1,4 +1,4 @@
-# ng_oauth_security
+# oauth2_security
  AngularJs Security Module for OAuth 2 <br/>
  
     angular.module('app')
