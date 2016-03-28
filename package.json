@@ -12,13 +12,14 @@
   },
   "keywords": [
     "angular",
+    "oauth 2.0",
     "oauth",
-    "2.0",
     "app",
+    "oauth interceptor",
     "security"
   ],
-  "author": "Naveen",
-  "license": "ISC",
+  "author": "Naveen Raj",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/naveenewm/oauth2-security/issues"
   },

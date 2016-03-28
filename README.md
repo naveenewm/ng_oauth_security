@@ -2,6 +2,12 @@ oauth2-security
 ============================
  oauth2-security is a security module for [AngularJs](http://angularjs.org/) to manage client side authentication and authorization for OAuth 2 servers (currently for only password flow). 
  
+ 
+### Demos
+-------------
+
+Check out the basic oauth2 password flow demos app [here](http://oauth2psw.naveenewm.net16.net).
+
 ### Features
 -------------
   - It will manage page direction according to user roles,
@@ -15,6 +21,7 @@ oauth2-security
 
 ```html
 <script src="angular(.min).js"></script>
+<script src="angular-cookies(.min).js"></script>
 <script src="oauth2-security(.min).js"></script>
 ```
  
@@ -100,40 +107,37 @@ OAuth has `OAuthConfig` service which contains all configs and context object, p
         entryPoint:["$http","OAuthConfig",function($http, OAuthConfig){
              var context = OAuthConfig.getContext();
              return {
-                 "accessToken":function(username, password) {
-                     return $http({
+                 "accessToken":{ <!-- for detaile config it can be function which returns promise object like below-->
                          method:"POST",
                          url: "${baseUrl}{{login}}",
-                         data: $.param({
+                         data: {
                              "client_id": context.client.clientId,
                              "client_secret": context.client.clientSecret,
                              "grant_type": context.client.passwordGrantType,
                              "scope":  context.client.scop,
-                             "username": username,
-                             "password": password
-                         }),
-                         headers: {'Content-Type': 'application/x-www-form-urlencoded'}
-                     }).then(function(credentials) {
-                         return credentials.data;
-                     });
-                 },
-                 "refreshToken": function(refreshToken) {
+                             <!--"username": username is default param-->
+                             <!--"password": password is  default param-->
+                         },
+                          <!--{'Content-Type': 'application/x-www-form-urlencoded'} 
+                          is default header for accessToken and refreshToken call-->
+                     },
+                 "refreshToken": function(refreshToken) { <!--it can be $http config object like above-->
                      return $http({
                          method:"POST",
                          url:  "{{baseUrl}}{{login}}",
-                         data: $.param({
+                         data: {
                              "client_id": context.client.clientId,
                              "client_secret": context.client.clientSecret,
                              "grant_type": context.client.refreshTokeGrantType,
                              "refresh_token": refreshToken
-                         }),
+                         },
                          headers: {'Content-Type': 'application/x-www-form-urlencoded'}
                      }).then(function(credentials) {
                          return credentials.data;
                      });
                  },
-                 "revokeToken" : function() {
-                     return $http({
+                 "revokeToken" : function() { 
+                     return $http({ <!--it can be $http config object-->
                          method:"GET",
                          url: "{{baseUrl}}{{logout}}"
                      });
@@ -143,6 +147,8 @@ OAuth has `OAuthConfig` service which contains all configs and context object, p
                          .then(function(user) { return user.data; });
                  },
                  "extractRoles":function(user){
+                  <!--it is optional method should return array of user role-->
+                 <!--if it is onely one user type default value ['ROLE_USER']-->
                      return user.roles;
                  }
              }
@@ -153,6 +159,17 @@ OAuth has `OAuthConfig` service which contains all configs and context object, p
 * directive to access secure image by adding access_token param in the url. 
 
         <img oauth-src="{{user._links.image.href}}" default-src="images/default.png"/>
+        
+#### Broadcasts
+
+* `oauth2:page-authenticated` when  redirected url authenticated to current user authorities.
+* `oauth2:page-denied` when redirected url denied to current user authorities.
+* `oauth2:principle-credentials-updated` when credentials(access_token,..) are updated in principle.
+* `oauth2:principle-user-updated` when user info updated in principle.
+* `oauth2:credentials-obtaining-failure` when credentials are failed to obtained when login.
+* `oauth2:user-obtaining-failure` when user info failed to obtained from server.
+* `oauth2:revoke-success` when revoke token on server successfully.
+* `oauth2:revoke-failure` when revoke token on server failure.
         
 #### Services
 
@@ -165,3 +182,13 @@ OAuth has `OAuthConfig` service which contains all configs and context object, p
 ------------
 
 Credit goes to [Spring Security](http://projects.spring.io/spring-security)
+
+### License
+------------
+
+The MIT License.
+
+Copyright ⓒ 2016 Naveen Raj
+
+See [LICENSE](https://github.com/naveenewm/oauth2-security/blob/master/LICENSE)
+

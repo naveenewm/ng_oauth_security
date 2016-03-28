@@ -1,5 +1,7 @@
 /**
- * Created by Naveen on 8/3/2015.
+ * oauth2.security
+ * ⓒ 2016 Naveen Raj
+ * License: MIT
  */
 angular.module('oauth2.security',['ngCookies'])
     // Provider to maintain config
@@ -109,7 +111,7 @@ angular.module('oauth2.security',['ngCookies'])
         }
     }])
     // service to keep credentials, user and authorities with local
-    .factory('Principle', ['$cookieStore', function($cookieStore) {
+    .factory('Principle', ['$cookieStore','$rootScope', function($cookieStore, $rootScope) {
         var _principle;
         var _user;
         var _authorities;
@@ -147,29 +149,25 @@ angular.module('oauth2.security',['ngCookies'])
                 _synch();
                 return !!_principle;
             },
-            'getPrinciple' : function() {
-                _synch();
+            'credentials' : function(credentials) {
+                _synch(credentials);
                 if(_principle) return _principle; else throw new Error('principle not found');
+                if(credentials)$rootScope.$broadcast('oauth2:principle-credentials-updated', credentials);
             },
-            'getUser' : function() {
-                _synch();
+            'user':function(user, authorities){
+                _synch(undefined,user,authorities);
                 if(_user) return _user; else throw new Error('user not found');
+                if(user)$rootScope.$broadcast('oauth2:principle-user-updated', user);
             },
-            'getAuthorities' : function() {
-                _synch();
+            'authorities':function(authorities){
+                _synch(undefined,undefined,authorities);
                 if(_authorities)return _authorities; else throw new Error('authorities not found');
             },
             'getAccessToken': function() {
-                return this.getPrinciple().access_token;
+                return this.credentials().access_token;
             },
             'getRefreshToken': function() {
-                return this.getPrinciple().refresh_token;
-            },
-            'setPrinciple' : function(principle) {
-                if(principle) _synch(principle); else throw new Error('principle not persisted',principle);
-            },
-            'setUser' :function(user, authorities) {
-                if(user && authorities) _synch(undefined,user,authorities); else throw new Error('user not persisted',user, authorities);
+                return this.credentials().refresh_token;
             },
             'setAuthentications' : function(principle, user, authorities) {
                 if(principle&&user&&authorities) _synch(principle, user, authorities); else throw new Error('principle not persisted',principle, user, authorities);
@@ -178,56 +176,69 @@ angular.module('oauth2.security',['ngCookies'])
         };
     }])
     // service to process auth requests
-    .factory('OAuthProcessor',['$http', 'OAuthConfig', '$injector','$log', function($http, OAuthConfig, $injector, $log) {
+    .factory('OAuthProcessor',['$http', 'OAuthConfig', '$injector','$log','$httpParamSerializerJQLike', function($http, OAuthConfig, $injector, $log, $httpParamSerializerJQLike) {
         var context = OAuthConfig.getContext();
         var processor = null;
         try{
             processor = $injector.invoke(OAuthConfig.getEntryPoint());
         }catch (e){
-            $log.debug(e.message);
+            $log.debug(e);
         }
         var defaultProcessor = new (function(){
-            this.accessToken = function(username, password) {
-                return $http({
-                    method:'POST',
-                    url: (context.url.baseUrl + context.url.login||'/token'),
-                    data: $.param({
-                        'client_id': context.client.clientId,
-                        'client_secret': context.client.clientSecret,
-                        'grant_type': context.client.passwordGrantType,
-                        'scope':  context.client.scope,
-                        'username': username,
-                        'password': password
-                    }),
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded'}
-                }).then(function(credencials) {
-                    return credencials.data;
+            this.accessToken = function(config,username,password) {
+                var c = angular.extend({
+                    method:"POST",
+                    url: "${authServer}/${login}",
+                },config);
+                c.data = angular.extend({
+                    "client_id": context.client.clientId,
+                    "client_secret": context.client.clientSecret,
+                    "username": username,
+                    "password": password,
+                    "grant_type": 'password',
+                    "scope":  'read',
+                },config.data);
+                c.headers = angular.extend({'Content-Type': 'application/x-www-form-urlencoded'},config.headers);
+                c.data = c.data&&c.headers['Content-Type']=='application/x-www-form-urlencoded'?
+                    $httpParamSerializerJQLike(c.data):c.data;
+                return $http(c).then(function(credentials) {
+                    return credentials.data;
                 });
             };
-            this.refreshToken = function(refreshToken) {
-                return $http({
-                    method:'POST',
-                    url: (context.url.baseUrl + context.url.login||'/login'),
-                    data: $.param({
-                        'client_id': context.client.clientId,
-                        'client_secret': context.client.clientSecret,
-                        'grant_type': context.client.refreshTokeGrantType,
-                        'refresh_token': refreshToken
-                    }),
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded'}
-                }).then(function(credencials) {
-                    return credencials.data;
+            this.refreshToken = function(config, refreshToken) {
+                var c = angular.extend({
+                    method:"POST",
+                    url: "${authServer}/${login}",
+                },config);
+                c.data = angular.extend({
+                    'client_id': context.client.clientId,
+                    'client_secret': context.client.clientSecret,
+                    'grant_type': 'refresh_token',
+                    'refresh_token': refreshToken
+                },config.data);
+                c.headers = angular.extend({'Content-Type': 'application/x-www-form-urlencoded'},config.headers);
+                c.data = c.data&&c.headers['Content-Type']=='application/x-www-form-urlencoded'?
+                    $httpParamSerializerJQLike(c.data):c.data;
+                return $http(c).then(function(credentials) {
+                    return credentials.data;
                 });
             };
-            this.revokeToken = function() {
-                return $http({
-                    method:'GET',
-                    url:(context.url.baseUrl + context.url.logout||'/revoke')
-                });
+            this.revokeToken = function(config) {
+                var c = angular.extend({method:"POST",url: "${authServer}/${revoke}"},config);
+                c.data = angular.extend({},config.data);
+                c.headers = angular.extend({'Content-Type': 'application/x-www-form-urlencoded'},config.headers);
+                c.data = c.data&&c.headers['Content-Type']=='application/x-www-form-urlencoded'?
+                    $httpParamSerializerJQLike(c.data):c.data;
+                return $http(c);
             };
-            this.me = function() {
-                return $http.get(context.url.baseUrl+context.url.user||'/me')
-                    .then(function(me) {return me.data;});
+            this.me = function(config) {
+                var c = angular.extend({method:"GET",url: "${resourceServer}/${me}"},config);
+                c.data = angular.extend({},config.data);
+                c.headers = angular.extend({'Content-Type': 'application/x-www-form-urlencoded'},config.headers);
+                c.data = c.data&&c.headers['Content-Type']=='application/x-www-form-urlencoded'?
+                    $httpParamSerializerJQLike(c.data):c.data;
+
+                return $http(c).then(function(me) {return me.data;});
             };
             this.extractRoles=function(users){
                 return users.roles||['ROLE_USER'];
@@ -235,16 +246,16 @@ angular.module('oauth2.security',['ngCookies'])
         })();
         return {
             'accessToken':function(username, password) {
-                return ((processor&&typeof processor.accessToken == 'function'&&processor.accessToken)||defaultProcessor.accessToken)(username, password);
+                return (processor&&typeof processor.accessToken == 'function')?processor.accessToken(username, password):defaultProcessor.accessToken(processor.accessToken,username, password);
             },
             'refreshToken': function(refreshToken) {
-                return ((processor&& typeof processor.refreshToken == 'function'&&processor.refreshToken)||defaultProcessor.refreshToken)(refreshToken);
+                return (processor&& typeof processor.refreshToken == 'function')?processor.refreshToken(refreshToken):defaultProcessor.refreshToken(processor.refreshToken,refreshToken);
             },
             'revokeToken' : function() {
-                return ((processor&& typeof processor.revokeToken == 'function'&&processor.revokeToken)||defaultProcessor.revokeToken)();
+                return (processor&& typeof processor.revokeToken == 'function')?processor.revokeToken():defaultProcessor.revokeToken(processor.revokeToken);
             },
             'me' : function() {
-                return ((processor&& typeof processor.me == 'function'&&processor.me)||defaultProcessor.me)();
+                return (processor&& typeof processor.me == 'function')?processor.me():defaultProcessor.me(processor.me);
             },
             'extractRoles' : function(user) {
                 return ((processor&& typeof processor.extractRoles == 'function'&&processor.extractRoles)||defaultProcessor.extractRoles)(user);
@@ -289,10 +300,10 @@ angular.module('oauth2.security',['ngCookies'])
                             if(!inFlightAuthRequest) {
                                 inFlightAuthRequest = OAuthProcessor.refreshToken(Principle.getRefreshToken());
                             }
-                            inFlightAuthRequest.then(function(credencials) {
+                            inFlightAuthRequest.then(function(credentials) {
                                 inFlightAuthRequest=null;
-                                if(credencials.access_token) {
-                                    Principle.setPrinciple(credencials);
+                                if(credentials.access_token) {
+                                    Principle.credentials(credentials);
                                     $injector.get('$http')(response.config).then(function(resp){
                                         defer.resolve(resp);
                                     }, function(resp){
@@ -315,7 +326,7 @@ angular.module('oauth2.security',['ngCookies'])
         };
     }])
     //service to manage redirection process
-    .factory('Redirection', ['$window','$location', 'OAuthConfig','Principle','$log', function($window,$location, OAuthConfig, Principle, $log) {
+    .factory('Redirection', ['$window','$location', 'OAuthConfig','Principle','$log','$rootScope', function($window,$location, OAuthConfig, Principle, $log, $rootScope) {
 
         var Redirection = new (function (){
             var view = OAuthConfig.getView();
@@ -344,11 +355,12 @@ angular.module('oauth2.security',['ngCookies'])
                 var currentUrl = $location.absUrl();
                 var currentUserRoles = null;
                 try{
-                    currentUserRoles = Principle.getAuthorities();
+                    currentUserRoles = Principle.authorities();
                     currentUserRoles.push('IS_AUTHENTICATED_ANONYMOUSLY')
                 }catch (e){$log.error(e.message); currentUserRoles = ['IS_ANONYMOUSLY'];}
                 if(getGrantedAuthoritiesOfUrl(currentUrl).some(function(role){return currentUserRoles.indexOf(role)>=0;})){
                     $log.debug('page authenticated',currentUrl);
+                    $rootScope.$broadcast('oauth2:page-authenticated', currentUrl);
                 } else {
                     if(currentUserRoles.indexOf('IS_ANONYMOUSLY')<0){
                         redirectUrl(view.getAccessDeniedPageUrl());
@@ -356,6 +368,7 @@ angular.module('oauth2.security',['ngCookies'])
                         redirectUrl(view.getLoginPageUrl());
                     }
                     $log.debug('page denied',currentUrl);
+                    $rootScope.$broadcast('oauth2:page-denied', currentUrl);
                 }
             };
             this.redirectToTarget = function(){
@@ -383,13 +396,16 @@ angular.module('oauth2.security',['ngCookies'])
             this.getContext=function(){  return context;  };
             this.login = function(username, password, defaultTarget) {
                 return OAuthProcessor.accessToken(username, password).then(function(cr){
-                    Principle.setPrinciple(cr);
+                    Principle.credentials(cr);
                     return OAuthProcessor.me().then(function (user) {
-                        Principle.setUser(user,OAuthProcessor.extractRoles(user));
+                        Principle.user(user,OAuthProcessor.extractRoles(user));
                         defaultTarget&&Redirection.redirectToTarget();
-                        $rootScope.$broadcast('oauthAccessTokenObtainingSuccess', user);
                         return user;
+                    },function(error){
+                        $rootScope.$broadcast('oauth2:user-obtaining-failure', error);
                     });
+                },function(error){
+                    $rootScope.$broadcast('oauth2:credentials-obtaining-failure', error);
                 });
             };
 
@@ -397,19 +413,19 @@ angular.module('oauth2.security',['ngCookies'])
                 return OAuthProcessor.revokeToken().then(function(resp) {
                     Principle.clear();
                     Redirection.confirmAccess();
-                    $rootScope.$broadcast('oauthRevokeSuccess',resp);
+                    $rootScope.$broadcast('oauth2:revoke-success',resp.data);
                 },function(resp) {
                     Principle.clear();
                     Redirection.confirmAccess();
-                    $rootScope.$broadcast('oauthRevokeSuccess', resp);
+                    $rootScope.$broadcast('oauth2:revoke-failure', resp);
                 });
             };
             this.getAbsUrl = function(path) {
-                return context.url.baseUrl+context.url.api+context.url.version+path;
+                return context.url.resourceServer+path;
             };
             this.getAbsUrlWithAuth = function(path) {
                 path = path.indexOf('?')>1?path+'&access_token='+Principle.getAccessToken():path+'?access_token='+Principle.getAccessToken();
-                return context.url.baseUrl+context.url.api+context.url.version+path;
+                return context.url.resourceServer+path;
             };
             this.getUrlWithAuth = function(url) {
                 url = url.indexOf('?')>1?url+'&access_token='+Principle.getAccessToken():url+'?access_token='+Principle.getAccessToken();
@@ -422,7 +438,7 @@ angular.module('oauth2.security',['ngCookies'])
             $get:['OAuthConfig', 'Principle', 'Redirection', 'OAuthProcessor', '$rootScope', OAuth]
         };
     }])
-    .directive('oauthSrc', ['OAuth', function (OAuth) {
+    .directive('oauthSrc', ['ExpResolver', function (ExpResolver) {
         function setImage(url,element){
             var img = new Image();
             img.src = url;
@@ -438,7 +454,10 @@ angular.module('oauth2.security',['ngCookies'])
                     setImage(defaultUrl,element);
                 });
                 attrs.$observe('oauthSrc', function(newVal, oldVal) {
-                    if (newVal != undefined) setImage(OAuth.getUrlWithAuth(newVal), element);
+                    if (newVal != undefined) {
+                        newVal += newVal.indexOf('?')>1?'&access_token=${access_token}':'?access_token=${access_token}';
+                        setImage(ExpResolver.resolveUrl(newVal), element);
+                    }
                 });
             }
         };
